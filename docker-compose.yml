@@ -1,0 +1,77 @@
+services:
+  # ========================================================
+  # 1. PostgreSQL Database Service
+  # ========================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: agnos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: hospital_middleware
+      TZ: Asia/Bangkok
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hospital_middleware"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - agnos_network
+
+  # ========================================================
+  # 2. Golang Middleware API Service (Gin + GORM)
+  # ========================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agnos_api
+    restart: always
+    environment:
+      PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgrespassword
+      DB_NAME: hospital_middleware
+      DB_SSLMODE: disable
+      JWT_SECRET: super-secret-hospital-jwt-key-agnos-2026
+      JWT_EXPIRE_HOURS: "24"
+      HIS_BASE_URL: https://hospital-a.api.co.th
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - agnos_network
+
+  # ========================================================
+  # 3. Nginx Reverse Proxy Service
+  # ========================================================
+  nginx:
+    image: nginx:alpine
+    container_name: agnos_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    networks:
+      - agnos_network
+
+networks:
+  agnos_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
