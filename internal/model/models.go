@@ -45,8 +45,8 @@ func (s *Staff) BeforeCreate(tx *gorm.DB) (err error) {
 // Patient represents a patient record compatible with Hospital A HIS data structure
 type Patient struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
-	Hospital     string         `gorm:"type:varchar(100);not null;index:idx_patient_hospital" json:"hospital"`
-	PatientHN    string         `gorm:"type:varchar(50);not null;index:idx_patient_hospital_hn" json:"patient_hn"`
+	Hospital     string         `gorm:"type:varchar(100);not null;uniqueIndex:idx_patient_hospital_hn;index:idx_patient_hospital" json:"hospital"`
+	PatientHN    string         `gorm:"type:varchar(50);not null;uniqueIndex:idx_patient_hospital_hn" json:"patient_hn"`
 	NationalID   string         `gorm:"type:varchar(20);index:idx_patient_national" json:"national_id,omitempty"`
 	PassportID   string         `gorm:"type:varchar(50);index:idx_patient_passport" json:"passport_id,omitempty"`
 	FirstNameTH  string         `gorm:"type:varchar(100);not null" json:"first_name_th"`
@@ -85,14 +85,14 @@ type StaffLoginRequest struct {
 	Hospital string `json:"hospital" binding:"required"`
 }
 
-// PatientSearchParams is the DTO for GET /patient/search
+// PatientSearchParams is the DTO for GET /patient/search (query string) and POST /patient/search (JSON body)
 type PatientSearchParams struct {
-	NationalID  string `form:"national_id"`
-	PassportID  string `form:"passport_id"`
-	FirstName   string `form:"first_name"`
-	MiddleName  string `form:"middle_name"`
-	LastName    string `form:"last_name"`
-	DateOfBirth string `form:"date_of_birth"`
-	PhoneNumber string `form:"phone_number"`
-	Email       string `form:"email"`
+	NationalID  string `form:"national_id" json:"national_id"`
+	PassportID  string `form:"passport_id" json:"passport_id"`
+	FirstName   string `form:"first_name" json:"first_name"`
+	MiddleName  string `form:"middle_name" json:"middle_name"`
+	LastName    string `form:"last_name" json:"last_name"`
+	DateOfBirth string `form:"date_of_birth" json:"date_of_birth"`
+	PhoneNumber string `form:"phone_number" json:"phone_number"`
+	Email       string `form:"email" json:"email"`
 }

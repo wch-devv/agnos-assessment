@@ -3,6 +3,7 @@ package handler_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,10 +18,15 @@ import (
 )
 
 type mockAuthServiceForHandler struct {
-	staffs map[string]string // username -> password
+	staffs    map[string]string // username -> password
+	createErr error
+	loginErr  error
 }
 
 func (m *mockAuthServiceForHandler) CreateStaff(req *model.StaffCreateRequest) (*model.Staff, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
 	if _, ok := m.staffs[req.Username]; ok {
 		return nil, service.ErrStaffAlreadyExists
 	}
@@ -33,6 +39,9 @@ func (m *mockAuthServiceForHandler) CreateStaff(req *model.StaffCreateRequest) (
 }
 
 func (m *mockAuthServiceForHandler) Login(req *model.StaffLoginRequest) (string, *model.Staff, error) {
+	if m.loginErr != nil {
+		return "", nil, m.loginErr
+	}
 	pwd, ok := m.staffs[req.Username]
 	if !ok || pwd != req.Password {
 		return "", nil, service.ErrInvalidCredentials
@@ -141,3 +150,88 @@ func TestStaffHandler_Login_WrongCredentials_401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+func TestStaffHandler_CreateStaff_InvalidBody_400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAuth := &mockAuthServiceForHandler{staffs: make(map[string]string)}
+	h := handler.NewStaffHandler(mockAuth)
+
+	r := gin.New()
+	r.POST("/staff/create", h.CreateStaff)
+
+	req, _ := http.NewRequest(http.MethodPost, "/staff/create", bytes.NewBufferString("{bad-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "Invalid request body")
+}
+
+func TestStaffHandler_CreateStaff_InternalError_500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAuth := &mockAuthServiceForHandler{
+		staffs:    make(map[string]string),
+		createErr: errors.New("unexpected db failure"),
+	}
+	h := handler.NewStaffHandler(mockAuth)
+
+	r := gin.New()
+	r.POST("/staff/create", h.CreateStaff)
+
+	body, _ := json.Marshal(model.StaffCreateRequest{
+		Username: "doctor_win",
+		Password: "Password123!",
+		Hospital: "hospital-a",
+	})
+	req, _ := http.NewRequest(http.MethodPost, "/staff/create", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "Failed to create staff member")
+}
+
+func TestStaffHandler_Login_InvalidBody_400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAuth := &mockAuthServiceForHandler{staffs: make(map[string]string)}
+	h := handler.NewStaffHandler(mockAuth)
+
+	r := gin.New()
+	r.POST("/staff/login", h.Login)
+
+	req, _ := http.NewRequest(http.MethodPost, "/staff/login", bytes.NewBufferString("{bad-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "Username, password, and hospital are required")
+}
+
+func TestStaffHandler_Login_InternalError_500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAuth := &mockAuthServiceForHandler{
+		staffs:   map[string]string{"doctor_win": "Password123!"},
+		loginErr: errors.New("db down"),
+	}
+	h := handler.NewStaffHandler(mockAuth)
+
+	r := gin.New()
+	r.POST("/staff/login", h.Login)
+
+	body, _ := json.Marshal(model.StaffLoginRequest{
+		Username: "doctor_win",
+		Password: "Password123!",
+		Hospital: "hospital-a",
+	})
+	req, _ := http.NewRequest(http.MethodPost, "/staff/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "Authentication failed")
+}
+

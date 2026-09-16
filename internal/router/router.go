@@ -54,6 +54,7 @@ func SetupRouter(
 		patient.Use(middleware.AuthMiddleware(authService))
 		{
 			patient.GET("/search", patientHandler.Search)
+			patient.POST("/search", patientHandler.Search)
 		}
 	}
 

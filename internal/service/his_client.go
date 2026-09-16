@@ -64,6 +64,7 @@ func (c *hisClient) FetchPatientFromHospitalA(id string) (*model.Patient, error)
 // MockHISClient for unit tests and local development fallback
 type MockHISClient struct {
 	MockData map[string]*model.Patient
+	Err      error
 }
 
 func NewMockHISClient() *MockHISClient {
@@ -73,6 +74,9 @@ func NewMockHISClient() *MockHISClient {
 }
 
 func (m *MockHISClient) FetchPatientFromHospitalA(id string) (*model.Patient, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
 	if patient, ok := m.MockData[id]; ok {
 		// Return copy
 		p := *patient

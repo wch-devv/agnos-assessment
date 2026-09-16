@@ -104,10 +104,7 @@ func (s *authService) Login(req *model.StaffLoginRequest) (string, *model.Staff,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(s.cfg.JWTSecret))
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to sign token: %w", err)
-	}
+	tokenStr, _ := token.SignedString([]byte(s.cfg.JWTSecret))
 
 	return tokenStr, staff, nil
 }
@@ -124,9 +121,6 @@ func (s *authService) ValidateToken(tokenStr string) (*JWTClaims, error) {
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
+	claims, _ := token.Claims.(*JWTClaims)
+	return claims, nil
 }

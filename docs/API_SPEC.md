@@ -118,11 +118,11 @@ Tokens are signed using `HMAC-SHA256` and encode `staff_id`, `username`, `hospit
 ---
 
 ### 2.3 Search Patients
-* **Endpoint:** `GET /api/v1/patient/search`
+* **Endpoint:** `GET /api/v1/patient/search` or `POST /api/v1/patient/search` (also available directly at `/patient/search`)
 * **Authentication:** **Required** (`Bearer <token>`)
-* **Description:** Searches patients matching the criteria. Results are **strictly scoped to the hospital of the authenticated staff member**.
+* **Description:** Searches patients matching the criteria. Results are **strictly scoped to the hospital of the authenticated staff member**. Supports query parameters for `GET` and JSON request body for `POST`.
 
-#### Query Parameters (All Optional)
+#### Query Parameters / JSON Request Body (All Optional)
 | Parameter | Type | Example | Description |
 |---|---|---|---|
 | `national_id` | string | `1100501234567` | 13-digit Thai National ID |

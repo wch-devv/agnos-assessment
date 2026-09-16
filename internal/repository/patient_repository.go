@@ -65,15 +65,15 @@ func (r *patientRepository) Search(hospital string, params *model.PatientSearchP
 		}
 		if strings.TrimSpace(params.FirstName) != "" {
 			name := "%" + strings.TrimSpace(params.FirstName) + "%"
-			query = query.Where("first_name_th ILIKE ? OR first_name_en ILIKE ?", name, name)
+			query = query.Where("(first_name_th ILIKE ? OR first_name_en ILIKE ?)", name, name)
 		}
 		if strings.TrimSpace(params.MiddleName) != "" {
 			mName := "%" + strings.TrimSpace(params.MiddleName) + "%"
-			query = query.Where("middle_name_th ILIKE ? OR middle_name_en ILIKE ?", mName, mName)
+			query = query.Where("(middle_name_th ILIKE ? OR middle_name_en ILIKE ?)", mName, mName)
 		}
 		if strings.TrimSpace(params.LastName) != "" {
 			lName := "%" + strings.TrimSpace(params.LastName) + "%"
-			query = query.Where("last_name_th ILIKE ? OR last_name_en ILIKE ?", lName, lName)
+			query = query.Where("(last_name_th ILIKE ? OR last_name_en ILIKE ?)", lName, lName)
 		}
 		if strings.TrimSpace(params.DateOfBirth) != "" {
 			query = query.Where("date_of_birth = ?", strings.TrimSpace(params.DateOfBirth))

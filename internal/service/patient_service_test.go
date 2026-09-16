@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,7 +13,9 @@ import (
 )
 
 type mockPatientRepository struct {
-	patients []model.Patient
+	patients  []model.Patient
+	searchErr error
+	upsertErr error
 }
 
 func newMockPatientRepository() *mockPatientRepository {
@@ -27,6 +30,9 @@ func (m *mockPatientRepository) Create(p *model.Patient) error {
 }
 
 func (m *mockPatientRepository) Upsert(p *model.Patient) error {
+	if m.upsertErr != nil {
+		return m.upsertErr
+	}
 	for i, existing := range m.patients {
 		if existing.Hospital == p.Hospital && existing.PatientHN == p.PatientHN {
 			m.patients[i] = *p
@@ -47,6 +53,9 @@ func (m *mockPatientRepository) FindByHNAndHospital(hn, hospital string) (*model
 }
 
 func (m *mockPatientRepository) Search(hospital string, params *model.PatientSearchParams) ([]model.Patient, error) {
+	if m.searchErr != nil {
+		return nil, m.searchErr
+	}
 	var results []model.Patient
 	for _, p := range m.patients {
 		// Strict hospital boundary enforcement
@@ -212,3 +221,72 @@ func TestPatientService_Search_NotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, results)
 }
+
+func TestPatientService_Search_RepoError(t *testing.T) {
+	repo := newMockPatientRepository()
+	repo.searchErr = errors.New("database connection failed")
+	svc := service.NewPatientService(repo, service.NewMockHISClient())
+
+	results, err := svc.SearchPatients("hospital-a", &model.PatientSearchParams{})
+	assert.Error(t, err)
+	assert.Nil(t, results)
+}
+
+func TestPatientService_Search_WithPassportID_CallsHIS_Success(t *testing.T) {
+	svc, _, mockHIS := setupPatientService()
+
+	passportID := "PASSPORT999"
+	mockHIS.MockData[passportID] = &model.Patient{
+		ID:          uuid.New(),
+		PatientHN:   "HN-PASSPORT",
+		PassportID:  passportID,
+		FirstNameTH: "สมศรี",
+		LastNameTH:  "ดีเลิศ",
+		FirstNameEN: "Somsri",
+		LastNameEN:  "Deelert",
+		Gender:      "F",
+	}
+
+	params := &model.PatientSearchParams{
+		PassportID: passportID,
+	}
+
+	results, err := svc.SearchPatients("hospital-a", params)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "HN-PASSPORT", results[0].PatientHN)
+	assert.Equal(t, "hospital-a", results[0].Hospital)
+}
+
+func TestPatientService_Search_HISError_GracefulFallback(t *testing.T) {
+	svc, _, mockHIS := setupPatientService()
+	mockHIS.Err = errors.New("HIS server timeout")
+
+	params := &model.PatientSearchParams{
+		NationalID: "9999999999999",
+	}
+	// Even if HIS fails, system logs warning and returns empty results without crashing
+	results, err := svc.SearchPatients("hospital-a", params)
+	assert.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestPatientService_Search_RepoUpsertError_GracefulFallback(t *testing.T) {
+	repo := newMockPatientRepository()
+	repo.upsertErr = errors.New("disk full")
+	mockHIS := service.NewMockHISClient()
+
+	mockHIS.MockData["1111111111111"] = &model.Patient{
+		ID:         uuid.New(),
+		PatientHN:  "HN-DISK-FULL",
+		NationalID: "1111111111111",
+		Gender:     "M",
+	}
+
+	svc := service.NewPatientService(repo, mockHIS)
+	results, err := svc.SearchPatients("hospital-a", &model.PatientSearchParams{NationalID: "1111111111111"})
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, "HN-DISK-FULL", results[0].PatientHN)
+}
+

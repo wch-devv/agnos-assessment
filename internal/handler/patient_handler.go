@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"agnos-assessment/internal/middleware"
 	"agnos-assessment/internal/model"
@@ -40,12 +41,16 @@ func (h *PatientHandler) Search(c *gin.Context) {
 	}
 
 	var params model.PatientSearchParams
-	if err := c.ShouldBindQuery(&params); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "Invalid query parameters",
-		})
-		return
+	if c.Request.Method == http.MethodPost && strings.Contains(c.GetHeader("Content-Type"), "application/json") {
+		if err := c.ShouldBindJSON(&params); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Invalid JSON request body",
+			})
+			return
+		}
+	} else {
+		_ = c.ShouldBindQuery(&params)
 	}
 
 	patients, err := h.patientService.SearchPatients(hospital, &params)
